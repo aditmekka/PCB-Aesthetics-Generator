@@ -1,0 +1,52 @@
+import type { Config } from './types';
+
+export const DEFAULT_CONFIG: Config = {
+  text: {
+    height: 1,
+    width: 1,
+    thickness: 0.15,
+    font: 'monospace',
+    weight: 700,
+    hAlign: 'center',
+    vAlign: 'middle',
+  },
+  box: { padX: 0.6, padY: 0.4, cornerRadius: 0.3 },
+  layout: { pitch: 2.54, orientation: 0, arrangement: 'row', originX: 0, originY: 0 },
+  plate: {
+    showPlate: false,
+    disableBoxes: false,
+    widthMm: 0,
+    heightMm: 0,
+    marginMm: 1,
+    cornerRadiusMm: 1,
+    roundTL: true,
+    roundTR: true,
+    roundBL: true,
+    roundBR: true,
+  },
+  preview: {
+    boxColor: '#f0d440',
+    boxAlpha: 1,
+    boardColor: '#0b3a5e',
+    boardAlpha: 1,
+    textColor: '#0b3a5e',
+    textAlpha: 1,
+    showPreviewBg: true,
+  },
+  export: {
+    dpi: 2400,
+    margin: 1,
+    background: 'transparent',
+    capture: 'strip',
+    singleIndex: 0,
+    style: 'knockout',
+  },
+  labels: [
+    { id: 'gnd', text: 'GND', enabled: true, showBox: true },
+    { id: '3v3', text: '3V3', enabled: true, showBox: true },
+    { id: 'tx', text: 'TX', enabled: true, showBox: true },
+    { id: 'rx', text: 'RX', enabled: true, showBox: true },
+    { id: 'dio', text: 'DIO', enabled: true, showBox: true },
+    { id: 'clk', text: 'CLK', enabled: true, showBox: true },
+  ],
+};
