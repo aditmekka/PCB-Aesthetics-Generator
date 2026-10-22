@@ -1,8 +1,8 @@
 import type { Config } from './types';
 
 /**
- * Browser port of the img2mod approach: turn a 1-bit silkscreen bitmap into a
- * KiCad footprint (.kicad_mod) made of filled `fp_poly` rectangles.
+ * Browser port of the img2mod approach: turn a 1-bit bitmap into a KiCad
+ * footprint (.kicad_mod) made of filled `fp_poly` rectangles.
  *
  * The original img2mod (Matthew Beckler / Wayne and Layne, GPLv2) emits one
  * 4-point polygon per black pixel. This port merges horizontal/vertical pixel
@@ -10,13 +10,14 @@ import type { Config } from './types';
  * text-sized artwork from producing hundreds of thousands of polygons.
  */
 
-export type FootprintSide = 'front' | 'back';
+/** Layer the artwork polygons are written to. */
+export type FootprintLayer = 'F.SilkS' | 'B.SilkS' | 'F.Mask';
 
 export interface FootprintOptions {
   /** Physical size of one bitmap pixel, in millimetres. */
   pixelSizeMm: number;
-  /** Which side the silkscreen polygons are placed on. */
-  side: FootprintSide;
+  /** Which layer the artwork polygons are placed on. */
+  layer: FootprintLayer;
   /** Put the graphic's centre at the footprint origin. */
   center: boolean;
   /** Footprint name (sanitised further below). */
@@ -124,17 +125,19 @@ export function binaryMaskToFootprint(
   const heightMm = height * pixelSize;
   const offsetX = options.center ? widthMm / 2 : 0;
   const offsetY = options.center ? heightMm / 2 : 0;
-  const name = sanitizeName(options.name);
-  const cupLayer = options.side === 'front' ? 'F.Cu' : 'B.Cu';
-  const silkLayer = options.side === 'front' ? 'F.SilkS' : 'B.SilkS';
-  const fabLayer = options.side === 'front' ? 'F.Fab' : 'B.Fab';
+  const layerSuffix = `_${options.layer.replace('.', '_')}`;
+  const name = `${sanitizeName(options.name).slice(0, 120 - layerSuffix.length)}${layerSuffix}`;
+  const isBack = options.layer === 'B.SilkS';
+  const cupLayer = isBack ? 'B.Cu' : 'F.Cu';
+  const referenceLayer = isBack ? 'B.SilkS' : 'F.SilkS';
+  const fabLayer = isBack ? 'B.Fab' : 'F.Fab';
+  const polygonLayer = options.layer;
 
-  const description = `Silkscreen artwork from PCB Knockout Generator - ${widthMm.toFixed(
+  const description = `Knockout artwork from PCB Knockout Generator - ${widthMm.toFixed(
     2
-  )} x ${heightMm.toFixed(2)} mm - ${pixelSize.toFixed(4)} mm per pixel`.replace(
-    /["\\]/g,
-    ' '
-  );
+  )} x ${heightMm.toFixed(2)} mm - ${pixelSize.toFixed(4)} mm per pixel - layer ${
+    options.layer
+  }`.replace(/["\\]/g, ' ');
 
   const header =
     `(footprint "${name}"\n` +
@@ -143,7 +146,7 @@ export function binaryMaskToFootprint(
     `  (layer "${cupLayer}")\n` +
     `  (at 0 0)\n` +
     `  (descr "${description}")\n` +
-    `  (fp_text reference "REF**" (at 0 0) (layer "${silkLayer}") hide\n` +
+    `  (fp_text reference "REF**" (at 0 0) (layer "${referenceLayer}") hide\n` +
     `    (effects (font (size 1 1) (thickness 0.15)))\n` +
     `  )\n` +
     `  (fp_text value "${name}" (at 0 0) (layer "${fabLayer}") hide\n` +
@@ -166,7 +169,7 @@ export function binaryMaskToFootprint(
         `    )\n` +
         `    (stroke (width 0.01) (type solid))\n` +
         `    (fill solid)\n` +
-        `    (layer "${silkLayer}")\n` +
+        `    (layer "${polygonLayer}")\n` +
         `  )\n`
     );
   }

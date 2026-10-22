@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Config } from '../model/types';
 import type { JlcReport } from '../model/jlcpcb';
-import type { FootprintResult, FootprintSide } from '../model/footprint';
+import type { FootprintLayer, FootprintResult } from '../model/footprint';
 import { FootprintError } from '../model/footprint';
 import { buildFootprint, downloadFootprint } from '../render/footprint';
 import { copyTextToClipboard } from '../render/clipboard';
@@ -16,7 +16,7 @@ type Status = { tone: 'ok' | 'error'; text: string };
 
 export function FootprintControls({ config, report }: Props) {
   const [pixelSize, setPixelSize] = useState(0.025);
-  const [side, setSide] = useState<FootprintSide>('front');
+  const [layer, setLayer] = useState<FootprintLayer>('F.SilkS');
   const [center, setCenter] = useState(true);
   const [status, setStatus] = useState<Status | null>(null);
   const cache = useRef<{ key: string; result: FootprintResult } | null>(null);
@@ -25,14 +25,14 @@ export function FootprintControls({ config, report }: Props) {
   useEffect(() => {
     setStatus(null);
     cache.current = null;
-  }, [config, pixelSize, side, center]);
+  }, [config, pixelSize, layer, center]);
 
   const getResult = (): FootprintResult => {
-    const key = JSON.stringify([config, pixelSize, side, center]);
+    const key = JSON.stringify([config, pixelSize, layer, center]);
     if (cache.current?.key === key) return cache.current.result;
     const result = buildFootprint(config, {
       pixelSizeMm: pixelSize,
-      side,
+      layer,
       center,
     });
     cache.current = { key, result };
@@ -45,7 +45,7 @@ export function FootprintControls({ config, report }: Props) {
       downloadFootprint(result);
       setStatus({
         tone: 'ok',
-        text: `Downloaded ${result.name}.kicad_mod — ${stats(result)}.`,
+        text: `Downloaded ${result.name}.kicad_mod on ${layer} — ${stats(result)}.`,
       });
     } catch (error) {
       setStatus({ tone: 'error', text: errorMessage(error) });
@@ -58,7 +58,10 @@ export function FootprintControls({ config, report }: Props) {
       const copied = await copyTextToClipboard(result.text);
       setStatus(
         copied
-          ? { tone: 'ok', text: `Copied ${stats(result)} to the clipboard.` }
+          ? {
+              tone: 'ok',
+              text: `Copied ${stats(result)} on ${layer} to the clipboard.`,
+            }
           : {
               tone: 'error',
               text: 'Clipboard access was blocked by the browser. Use Download instead.',
@@ -75,14 +78,22 @@ export function FootprintControls({ config, report }: Props) {
     <Section title="KiCad footprint">
       <p className="hint">
         Generates a <code>.kicad_mod</code> directly — no Image Converter step. This is a browser
-        port of the local <code>img2mod</code> approach: each ink pixel becomes a filled
-        silkscreen polygon, with adjacent runs merged to keep the file small.
+        port of the local <code>img2mod</code> approach: each ink pixel becomes a filled polygon on
+        the selected layer, with adjacent runs merged to keep the file small.
       </p>
-      {report.status === 'fail' && (
+      {layer !== 'F.Mask' && report.status === 'fail' && (
         <p className="hint error">
           {report.errorCount} hard JLCPCB limit{report.errorCount === 1 ? '' : 's'} exceeded. The
           footprint uses the same artwork — fix {report.errorCount === 1 ? 'it' : 'them'} before
           ordering.
+        </p>
+      )}
+      {layer === 'F.Mask' && (
+        <p className="hint">
+          F.Mask writes the artwork as solder-mask openings: filled areas are opened and the
+          knocked-out text stays covered by mask. Turn the boxes/plate off to make the solid text
+          the opening. The JLCPCB character checks above are for silkscreen, not mask; check your
+          fab's mask rules separately.
         </p>
       )}
       <NumberField
@@ -95,12 +106,13 @@ export function FootprintControls({ config, report }: Props) {
         onChange={setPixelSize}
       />
       <SelectField
-        label="Side"
-        value={side}
-        onChange={(value) => setSide(value as FootprintSide)}
+        label="Layer"
+        value={layer}
+        onChange={(value) => setLayer(value as FootprintLayer)}
         options={[
-          { label: 'Front (F.SilkS)', value: 'front' },
-          { label: 'Back (B.SilkS)', value: 'back' },
+          { label: 'F.SilkS (front)', value: 'F.SilkS' },
+          { label: 'B.SilkS (back)', value: 'B.SilkS' },
+          { label: 'F.Mask (solder)', value: 'F.Mask' },
         ]}
       />
       <CheckboxField
@@ -122,8 +134,7 @@ export function FootprintControls({ config, report }: Props) {
       <p className="hint">
         {pixelSize.toFixed(3)} mm/px ≈ {dpi} DPI. Smaller pixels give smoother edges but more
         polygons; larger pixels give a lighter file. The footprint is tightly cropped (the PNG
-        margin is ignored). KiCad 6+ format, placed on{' '}
-        {side === 'front' ? 'F.SilkS' : 'B.SilkS'}.
+        margin is ignored). KiCad 6+ format, polygons on {layer}.
       </p>
     </Section>
   );

@@ -1,5 +1,5 @@
 import type { Config } from '../model/types';
-import type { FootprintResult, FootprintSide } from '../model/footprint';
+import type { FootprintLayer, FootprintResult } from '../model/footprint';
 import { FootprintError, binaryMaskToFootprint, footprintBaseName } from '../model/footprint';
 import { createScene, measureContent } from './renderer';
 
@@ -16,7 +16,7 @@ const MAX_POLYGONS = 100_000;
 
 export interface FootprintSettings {
   pixelSizeMm: number;
-  side: FootprintSide;
+  layer: FootprintLayer;
   center: boolean;
 }
 
@@ -64,7 +64,7 @@ export function buildFootprint(config: Config, settings: FootprintSettings): Foo
 
   return binaryMaskToFootprint(mask, scene.widthPx, scene.heightPx, {
     pixelSizeMm,
-    side: settings.side,
+    layer: settings.layer,
     center: settings.center,
     name: footprintBaseName(config),
     maxPolygons: MAX_POLYGONS,

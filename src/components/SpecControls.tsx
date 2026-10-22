@@ -53,7 +53,7 @@ export function SpecControls({ config, setConfig, report }: Props) {
         {thresholds.label}: height ≥ {formatMm(thresholds.minHeight)}, stroke ≥{' '}
         {formatMm(thresholds.minStroke)}. Gaps ≥ {formatMm(thresholds.minGap)} (
         {formatMm(thresholds.recGap)} recommended). Pick the process you will order —
-        high-precision is a separate JLCPCB option.
+        high-precision is a separate JLCPCB option. These are silkscreen rules only.
       </p>
 
       <ul className="spec-list">

@@ -26,8 +26,9 @@ real millimetres. It exports a high-DPI PNG for **KiCad's Image Converter**
   [JLCPCB character design specifications](https://jlcpcb.com/blog/character-design-specifications).
   It supports the standard and high-precision processes, checks export resolution, and can clamp
   the design to JLCPCB's recommended values.
-- **Direct KiCad footprint** — generates a `.kicad_mod` (img2mod-style) and lets you **download**
-  it or **copy** the footprint text to the clipboard, without the Image Converter step.
+- **Direct KiCad footprint** — generates a `.kicad_mod` (img2mod-style) on `F.SilkS`, `B.SilkS`
+  or `F.Mask`, and lets you **download** it or **copy** the footprint text to the clipboard,
+  without the Image Converter step.
 
 ## JLCPCB compliance
 
@@ -41,6 +42,9 @@ done in KiCad (notes).
 | Character stroke | ≥ 0.15 mm | ≥ 0.10 mm |
 | Character / ink gap | ≥ 0.15 mm (0.20 mm recommended) | same |
 | Export resolution | ≥ 4 px on the narrowest feature | same |
+
+These checks apply to silkscreen characters. Solder-mask openings (`F.Mask`) follow different
+manufacturing rules and are not covered by this panel — check your fab's mask limits separately.
 
 How it is measured:
 
@@ -83,13 +87,20 @@ footprint — no Image Converter step. It is a TypeScript reimplementation of th
 `img2mod/`; the original is by Matthew Beckler, Wayne and Layne, LLC).
 
 - **Pixel size** sets the physical size of one bitmap pixel (default 0.025 mm).
-- **Side** places the polygons on `F.SilkS` or `B.SilkS` and sets the footprint layer accordingly.
+- **Layer** writes the polygons to `F.SilkS`, `B.SilkS` or `F.Mask`. Back-side footprints use
+  `B.Cu`/`B.SilkS`; front-side and mask footprints use `F.Cu`.
 - **Center at footprint origin** puts the artwork's centre at `(0, 0)`; otherwise it starts at 0,0.
-- **Download** saves `NAME.kicad_mod`. **Copy** copies the same text to the clipboard.
+- **Download** saves `NAME_LAYER.kicad_mod` (for example `GND_F_Mask.kicad_mod`). **Copy**
+  copies the same text to the clipboard.
 - Adjacent pixel runs are merged into rectangles, so the output covers exactly the same area as
   img2mod's one-polygon-per-pixel output but is much smaller.
 - The file uses footprint format version `20211014` (KiCad 6 and newer). Polygons are filled
-  silkscreen shapes with a 0.01 mm outline to avoid hairline seams.
+  shapes on the selected layer with a 0.01 mm outline to avoid hairline seams.
+
+On **F.Mask** the artwork is written as solder-mask openings: filled areas are opened and the
+knocked-out text remains covered by mask. Turn the box/plate off to make the solid text the opening.
+Solder-mask openings have different manufacturing limits from silkscreen, so the JLCPCB character
+checks do not apply to this layer.
 
 The footprint is tightly cropped (the PNG margin is ignored) and honours the current
 **Capture → Single label** setting. Smaller pixels give smoother curves but more polygons and a
@@ -115,13 +126,14 @@ Some of the silkscreen looks generated with the tool:
 2. `npm run dev` — open http://localhost:5173
 3. Configure labels/layout/colors. Resolve any red **JLCPCB spec** findings (or click
    **Apply recommended values**), then **⬇ Download PNG**.
-4. In KiCad: **Image Converter** → choose the PNG → `F.Silkscreen`, Front → set the scale so
-   the canvas maps to the **Box** size shown in the Export panel. Run DRC to confirm the
-   silkscreen is clear of pads and exposed copper.
+4. In KiCad: **Image Converter** → choose the PNG → `F.Silkscreen` (or `F.Mask` for a mask
+   opening) → set the scale so the canvas maps to the **Box** size shown in the Export panel.
+   Run DRC to confirm the artwork is clear of pads and exposed copper.
 
 Alternatively, skip the Image Converter: use the **KiCad footprint** panel to **Download** a
 `.kicad_mod`, or **Copy** the footprint text and paste it into a new file in a `.pretty` footprint
-library. It uses the current artwork and `Capture` setting.
+library. Choose the layer (`F.SilkS`, `B.SilkS` or `F.Mask`); it uses the current artwork and
+`Capture` setting.
 
 ## Scripts
 

@@ -130,11 +130,11 @@ export function ExportControls({ config, setConfig, report }: Props) {
         <p>1 mm = {pxPerMm.toFixed(2)} px</p>
         {e.style === 'knockout' ? (
           <p className="hint">
-            <strong>Quality:</strong> higher DPI = smoother traced silkscreen edges. The exported
-            canvas keeps the exact mm ratio — you set the real size in KiCad, so <em>only the ratio
-            matters</em>. Use ≥2400 for clean small text. In KiCad: <code>Image Converter</code> →
-            the PNG → <code>F.Silkscreen</code>, Front → set the scale so the canvas matches the{' '}
-            <strong>Box</strong> size above.
+            <strong>Quality:</strong> higher DPI = smoother traced edges. The exported canvas keeps
+            the exact mm ratio — you set the real size in KiCad, so <em>only the ratio matters</em>.
+            Use ≥2400 for clean small text. In KiCad: <code>Image Converter</code> → the PNG →{' '}
+            <code>F.Silkscreen</code> (or <code>F.Mask</code>; its filled areas become mask
+            openings) → set the scale so the canvas matches the <strong>Box</strong> size above.
           </p>
         ) : (
           <p className="hint">

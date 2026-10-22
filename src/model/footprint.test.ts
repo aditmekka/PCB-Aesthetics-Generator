@@ -20,7 +20,7 @@ function makeMask(width: number, height: number, blocks: [number, number, number
 
 const baseOptions = {
   pixelSizeMm: 0.5,
-  side: 'front' as const,
+  layer: 'F.SilkS' as const,
   center: false,
   name: 'GND_3V3',
 };
@@ -31,7 +31,8 @@ describe('binaryMaskToFootprint', () => {
     expect(result.polygonCount).toBe(0);
     expect(result.widthMm).toBe(1);
     expect(result.heightMm).toBe(1);
-    expect(result.text).toContain('(footprint "GND_3V3"');
+    expect(result.name).toBe('GND_3V3_F_SilkS');
+    expect(result.text).toContain('(footprint "GND_3V3_F_SilkS"');
     expect(result.text).toContain('(version 20211014)');
     expect(result.text).toContain('(layer "F.Cu")');
     expect(result.text).toContain('(fp_text reference "REF**"');
@@ -81,13 +82,26 @@ describe('binaryMaskToFootprint', () => {
     expect(result.text).toContain('(xy 0.5 0.25)');
   });
 
-  it('uses the requested side for all layers', () => {
+  it('writes back-side footprints on the back layers', () => {
     const mask = makeMask(1, 1, [[0, 0, 1, 1]]);
-    const result = binaryMaskToFootprint(mask, 1, 1, { ...baseOptions, side: 'back' });
+    const result = binaryMaskToFootprint(mask, 1, 1, { ...baseOptions, layer: 'B.SilkS' });
+    expect(result.name).toBe('GND_3V3_B_SilkS');
     expect(result.text).toContain('(layer "B.Cu")');
     expect(result.text).toContain('(layer "B.SilkS")');
     expect(result.text).toContain('(layer "B.Fab")');
     expect(result.text).not.toContain('F.SilkS');
+  });
+
+  it('writes F.Mask polygons and keeps the reference on front silkscreen', () => {
+    const mask = makeMask(1, 1, [[0, 0, 1, 1]]);
+    const result = binaryMaskToFootprint(mask, 1, 1, { ...baseOptions, layer: 'F.Mask' });
+    expect(result.name).toBe('GND_3V3_F_Mask');
+    expect(result.text).toContain('(layer "F.Cu")');
+    expect(result.text).toContain('(layer "F.Mask")');
+    expect(result.text).toContain('(layer "F.SilkS")');
+    expect(result.text).toContain('(layer "F.Fab")');
+    expect(result.text).toContain('layer F.Mask');
+    expect(result.text).not.toContain('(layer "B.');
   });
 
   it('emits filled polygons on the silkscreen layer', () => {
