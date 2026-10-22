@@ -5,14 +5,18 @@ export type Capture = 'strip' | 'single';
 export type ExportStyle = 'knockout' | 'colorized';
 export type HAlign = 'left' | 'center' | 'right';
 export type VAlign = 'top' | 'middle' | 'bottom';
+/** JLCPCB character process selected when ordering the board. */
+export type JlcProfile = 'standard' | 'highPrecision';
 
 export interface TextStyle {
-  /** Glyph height in mm (KiCad text size height). */
+  /** Cap height in mm (the height of an uppercase letter). */
   height: number;
   /** Glyph width in mm (KiCad text size width). */
   width: number;
-  /** Stroke thickness in mm (KiCad text thickness). */
+  /** Minimum stroke thickness in mm (KiCad text thickness). */
   thickness: number;
+  /** Extra space between characters in mm (helps meet the 0.15 mm gap rule). */
+  letterSpacing: number;
   /** CSS font family. */
   font: string;
   /** CSS font weight. */
@@ -85,6 +89,13 @@ export interface PlateStyle {
   roundBR: boolean;
 }
 
+export interface SpecConfig {
+  /** Which JLCPCB character process the design is checked against. */
+  profile: JlcProfile;
+  /** Ask for confirmation before exporting a design that exceeds a hard limit. */
+  guardExport: boolean;
+}
+
 export interface ExportConfig {
   /** DPI used for the exported PNG; maps pixels to mm in KiCad's converter. */
   dpi: number;
@@ -107,5 +118,6 @@ export interface Config {
   plate: PlateStyle;
   preview: PreviewStyle;
   export: ExportConfig;
+  spec: SpecConfig;
   labels: LabelConfig[];
 }

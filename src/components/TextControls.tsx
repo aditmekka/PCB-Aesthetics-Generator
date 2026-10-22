@@ -69,12 +69,20 @@ export function TextControls({ config, setConfig, customFonts, onUploadFont }: P
         onChange={(v) => set({ width: v })}
       />
       <NumberField
-        label="Thickness"
+        label="Stroke target"
         suffix="mm"
         step={0.05}
         min={0.05}
         value={t.thickness}
         onChange={(v) => set({ thickness: v })}
+      />
+      <NumberField
+        label="Letter spacing"
+        suffix="mm"
+        step={0.01}
+        min={0}
+        value={t.letterSpacing}
+        onChange={(v) => set({ letterSpacing: v })}
       />
       <SelectField label="Font" value={t.font} onChange={(v) => set({ font: v })} options={fontOptions} />
       <SelectField
@@ -103,6 +111,10 @@ export function TextControls({ config, setConfig, customFonts, onUploadFont }: P
           { label: 'Bottom', value: 'bottom' },
         ]}
       />
+      <p className="hint">
+        Height is the real cap height. Stroke target is a minimum — heavier fonts can render wider.
+        Letter spacing opens up the gaps between characters.
+      </p>
       <div className="font-upload">
         <input
           ref={fileRef}

@@ -1,4 +1,5 @@
 import type { Config } from '../model/types';
+import type { JlcReport } from '../model/jlcpcb';
 import { NumberField, Section, SelectField } from './Fields';
 import { measureContent } from '../render/renderer';
 import { exportPng } from '../render/exportPng';
@@ -6,15 +7,36 @@ import { exportPng } from '../render/exportPng';
 interface Props {
   config: Config;
   setConfig: React.Dispatch<React.SetStateAction<Config>>;
+  report: JlcReport;
 }
 
-export function ExportControls({ config, setConfig }: Props) {
+export function ExportControls({ config, setConfig, report }: Props) {
   const e = config.export;
   const set = (patch: Partial<Config['export']>) =>
     setConfig((c) => ({ ...c, export: { ...c.export, ...patch } }));
 
   const content = measureContent(config, e.dpi);
   const pxPerMm = e.dpi / 25.4;
+
+  const handleExport = () => {
+    if (
+      config.spec.guardExport &&
+      e.style === 'knockout' &&
+      report.status === 'fail'
+    ) {
+      const details = report.findings
+        .filter((finding) => finding.status === 'fail')
+        .map((finding) => `• ${finding.title}: ${finding.detail}`)
+        .join('\n');
+      const proceed = window.confirm(
+        `This design exceeds ${report.errorCount} JLCPCB limit${
+          report.errorCount === 1 ? '' : 's'
+        }:\n\n${details}\n\nJLCPCB may widen or remove silkscreen features. Export anyway?`
+      );
+      if (!proceed) return;
+    }
+    exportPng(config);
+  };
 
   return (
     <Section title="Export">
@@ -83,7 +105,18 @@ export function ExportControls({ config, setConfig }: Props) {
         ]}
       />
 
-      <button className="btn export-btn" onClick={() => exportPng(config)}>
+      <div className={`spec-summary export-spec is-${report.status}`}>
+        <span className={`spec-pill is-${report.status}`}>JLCPCB</span>
+        <span className="spec-summary-text">{report.summary}</span>
+      </div>
+      {report.status === 'fail' && e.style === 'knockout' && (
+        <p className="hint error">
+          This design exceeds a hard JLCPCB limit. Resolve the errors in the JLCPCB spec panel
+          before ordering, or JLCPCB may remove the affected characters.
+        </p>
+      )}
+
+      <button className="btn export-btn" onClick={handleExport}>
         ⬇ Download PNG
       </button>
 

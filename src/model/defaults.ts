@@ -2,16 +2,17 @@ import type { Config } from './types';
 
 export const DEFAULT_CONFIG: Config = {
   text: {
-    height: 1,
-    width: 1,
-    thickness: 0.15,
+    height: 1.2,
+    width: 1.2,
+    thickness: 0.2,
+    letterSpacing: 0.15,
     font: 'monospace',
     weight: 700,
     hAlign: 'center',
     vAlign: 'middle',
   },
   box: { padX: 0.6, padY: 0.4, cornerRadius: 0.3 },
-  layout: { pitch: 2.54, orientation: 0, arrangement: 'row', originX: 0, originY: 0 },
+  layout: { pitch: 2.54, orientation: 90, arrangement: 'row', originX: 0, originY: 0 },
   plate: {
     showPlate: false,
     disableBoxes: false,
@@ -40,6 +41,10 @@ export const DEFAULT_CONFIG: Config = {
     capture: 'strip',
     singleIndex: 0,
     style: 'knockout',
+  },
+  spec: {
+    profile: 'standard',
+    guardExport: true,
   },
   labels: [
     { id: 'gnd', text: 'GND', enabled: true, showBox: true },

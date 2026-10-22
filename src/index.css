@@ -8,6 +8,9 @@
   --accent: #f0d440;
   --accent-2: #4d7cff;
   --danger: #ff5c72;
+  --ok: #3ad59f;
+  --warn: #ffb020;
+  --note: #6aa8ff;
 }
 
 * {
@@ -86,6 +89,10 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .preview-canvas-wrap {
@@ -101,8 +108,9 @@ body {
 }
 
 .preview-canvas {
-  max-width: 100%;
-  height: auto;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   image-rendering: auto;
 }
 
@@ -306,6 +314,20 @@ input[type='range'] {
   filter: brightness(1.08);
 }
 
+.footprint-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.footprint-actions .btn {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.hint.ok {
+  color: var(--ok);
+}
+
 /* Info */
 .export-info {
   font-size: 12px;
@@ -394,4 +416,186 @@ code {
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 12px;
+}
+
+/* JLCPCB compliance */
+.spec-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.spec-pill.is-pass {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #06251a;
+}
+
+.spec-pill.is-warn {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #2a1a00;
+}
+
+.spec-pill.is-fail {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #2a0007;
+}
+
+.spec-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-input);
+}
+
+.spec-summary.is-pass {
+  border-color: rgba(58, 213, 159, 0.45);
+}
+
+.spec-summary.is-warn {
+  border-color: rgba(255, 176, 32, 0.45);
+}
+
+.spec-summary.is-fail {
+  border-color: rgba(255, 92, 114, 0.55);
+}
+
+.spec-summary-text {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.spec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spec-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-input);
+}
+
+.spec-item.is-pass {
+  border-color: rgba(58, 213, 159, 0.22);
+}
+
+.spec-item.is-warn {
+  border-color: rgba(255, 176, 32, 0.3);
+}
+
+.spec-item.is-fail {
+  border-color: rgba(255, 92, 114, 0.45);
+}
+
+.spec-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+.spec-item.is-pass .spec-icon {
+  background: rgba(58, 213, 159, 0.16);
+  color: var(--ok);
+}
+
+.spec-item.is-warn .spec-icon {
+  background: rgba(255, 176, 32, 0.16);
+  color: var(--warn);
+}
+
+.spec-item.is-fail .spec-icon {
+  background: rgba(255, 92, 114, 0.16);
+  color: var(--danger);
+}
+
+.spec-item.is-note .spec-icon {
+  background: rgba(106, 168, 255, 0.16);
+  color: var(--note);
+}
+
+.spec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.spec-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.spec-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.spec-value {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.spec-limit {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.spec-detail {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.spec-fix {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--accent);
+}
+
+.spec-apply {
+  width: 100%;
+}
+
+.export-spec {
+  margin-top: 2px;
+}
+
+a {
+  color: var(--accent-2);
 }

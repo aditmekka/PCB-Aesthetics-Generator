@@ -29,10 +29,22 @@ export function pxPerMmFromDpi(dpi: number): number {
   return dpi / 25.4;
 }
 
-/** Font-size (px) needed so cap height equals `heightMm` at the given scale. */
-export function fontSizeFromHeight(heightMm: number, pxPerMm: number): number {
-  const heightPx = mmToPx(heightMm, pxPerMm);
-  return heightPx / CAP_HEIGHT_RATIO;
+/**
+ * Font-size (px) needed so the actual cap height equals `heightMm`.
+ *
+ * `capHeightRatio` is cap-height / font-size for the selected font. It is
+ * measured from the real font at runtime (see `getCapHeightRatio`), because it
+ * varies a lot: ~0.65 for Courier-metric monospace, ~0.72 for Arial. Assuming
+ * 0.72 for every font makes "1 mm" text up to 10% too small, which would
+ * silently violate JLCPCB's 1 mm minimum.
+ */
+export function fontSizeFromHeight(
+  heightMm: number,
+  pxPerMm: number,
+  capHeightRatio: number = CAP_HEIGHT_RATIO
+): number {
+  const ratio = capHeightRatio > 0 ? capHeightRatio : CAP_HEIGHT_RATIO;
+  return mmToPx(heightMm, pxPerMm) / ratio;
 }
 
 /** Horizontal glyph scale applied to match KiCad's width/height sizing. */

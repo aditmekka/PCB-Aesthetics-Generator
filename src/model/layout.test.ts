@@ -31,6 +31,15 @@ describe('layout math', () => {
     expect(fs).toBeCloseTo(100 / 0.72, 1);
   });
 
+  it('uses the measured cap-height ratio for the selected font', () => {
+    // Courier-metric monospace has a much lower cap height than Arial.
+    expect(fontSizeFromHeight(1, 100, 0.65)).toBeCloseTo(100 / 0.65, 5);
+  });
+
+  it('falls back to the default ratio when the measured ratio is invalid', () => {
+    expect(fontSizeFromHeight(1, 100, 0)).toBeCloseTo(100 / 0.72, 5);
+  });
+
   it('maps 2.54mm to exactly 60px at 600 DPI', () => {
     expect(pxPerMm).toBeCloseTo(600 / 25.4, 5);
   });

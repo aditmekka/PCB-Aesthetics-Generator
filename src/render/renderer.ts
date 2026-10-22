@@ -1,10 +1,12 @@
 import type { Config, LabelConfig, TextStyle } from '../model/types';
+import type { SpecGeometry, SpecLabelGeometry } from '../model/jlcpcb';
 import {
   fontSizeFromHeight,
   horizontalScale,
   mmToPx,
   pxPerMmFromDpi,
 } from '../model/layout';
+import { getCapHeightRatio, measureTextRendering } from './textMetrics';
 
 export interface LabelRender {
   text: string;
@@ -27,6 +29,18 @@ export interface LabelRender {
   /** Text origin offset from the box center (px, in the box frame). */
   textOffsetX: number;
   textOffsetY: number;
+  /** Cap height setting for this label, mm. */
+  heightMm: number;
+  /** Requested minimum stroke width, mm. */
+  targetStrokeMm: number;
+  /** Extra letter spacing in px, in the (unscaled) text frame. */
+  letterSpacingPx: number;
+  /** Additional stroke drawn around the glyph outline, px. */
+  strokePx: number;
+  /** Measured effective stroke width, mm (null if unmeasurable). */
+  strokeMm: number | null;
+  /** Measured narrowest gap between characters, mm (null if n/a). */
+  letterGapMm: number | null;
   /** Whether to draw an individual box behind this label's text. */
   showBox: boolean;
 }
@@ -49,8 +63,10 @@ export function resolveTextStyle(label: LabelConfig, config: Config): TextStyle 
 }
 
 interface InkMetrics {
-  left: number;
-  right: number;
+  /** Left edge of the ink, relative to the text origin (px). */
+  xMin: number;
+  /** Right edge of the ink, relative to the text origin (px). */
+  xMax: number;
   ascent: number;
   descent: number;
 }
@@ -60,19 +76,24 @@ interface InkMetrics {
  * This is "graphics based": we align on the real drawn pixels rather than the
  * font's advance width, so e.g. right-aligned vertical text has every right
  * edge on the same line.
+ *
+ * `actualBoundingBoxLeft` is a *leftward distance* from the origin, so the ink
+ * starts at `-actualBoundingBoxLeft` (it is negative for normal left bearings).
  */
 function measureTextInk(
   ctx: CanvasRenderingContext2D,
   text: string,
-  font: string
+  font: string,
+  letterSpacingPx: number
 ): InkMetrics {
   ctx.font = font;
+  ctx.letterSpacing = `${letterSpacingPx}px`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   const m = ctx.measureText(text);
   return {
-    left: m.actualBoundingBoxLeft || 0,
-    right: m.actualBoundingBoxRight || 0,
+    xMin: -(m.actualBoundingBoxLeft || 0),
+    xMax: m.actualBoundingBoxRight || 0,
     ascent: m.actualBoundingBoxAscent || 0,
     descent: m.actualBoundingBoxDescent || 0,
   };
@@ -178,16 +199,41 @@ export function computeLabels(
   for (const label of config.labels) {
     if (!label.enabled) continue;
     const t = resolveTextStyle(label, config);
-    const fontSize = fontSizeFromHeight(t.height, pxPerMm);
+    // Measure the real font rather than assuming a 0.72 cap-height ratio, so
+    // "height" is the actual glyph height in mm on the board.
+    const fontSize = fontSizeFromHeight(
+      t.height,
+      pxPerMm,
+      getCapHeightRatio(t.font, t.weight)
+    );
     const hscale = horizontalScale(t.width, t.height);
+    const letterSpacingPx = mmToPx(t.letterSpacing, pxPerMm);
     const font = `${t.weight} ${fontSize}px ${t.font}`;
-    const ink = measureTextInk(ctx, label.text, font);
+    const ink = measureTextInk(ctx, label.text, font, letterSpacingPx);
+
+    // The stroke target can require an extra outline around the glyph. Measure
+    // the font's real stem width and boost it only if it is thinner than asked.
+    const measured = measureTextRendering({
+      text: label.text,
+      family: t.font,
+      weight: t.weight,
+      fontPx: fontSize,
+      pxPerMm,
+      hscale,
+      letterSpacingPx,
+      targetStrokeMm: t.thickness,
+    });
+    const strokePx = mmToPx(measured.boostMm, pxPerMm);
 
     // Ink extents (px, after horizontal scale), relative to the text origin.
-    const x0 = ink.left * hscale;
-    const x1 = ink.right * hscale;
-    const y0 = -ink.ascent;
-    const y1 = ink.descent;
+    // The stroke expands the outline symmetrically by strokePx/2 vertically and
+    // strokePx*hscale/2 horizontally (the canvas text is scaled on X).
+    const xPad = (strokePx * hscale) / 2;
+    const yPad = strokePx / 2;
+    const x0 = ink.xMin * hscale - xPad;
+    const x1 = ink.xMax * hscale + xPad;
+    const y0 = -ink.ascent - yPad;
+    const y1 = ink.descent + yPad;
     const inkCX = (x0 + x1) / 2;
     const inkCY = (y0 + y1) / 2;
     const inkW = x1 - x0;
@@ -221,6 +267,12 @@ export function computeLabels(
       hscale,
       textOffsetX: -inkCX,
       textOffsetY: -inkCY,
+      heightMm: t.height,
+      targetStrokeMm: t.thickness,
+      letterSpacingPx,
+      strokePx,
+      strokeMm: measured.strokeMm,
+      letterGapMm: measured.letterGapMm,
       showBox: label.showBox !== false,
     });
     i++;
@@ -263,6 +315,10 @@ interface LayoutInfo {
   boxHeightMm: number;
   contentWidthMm: number;
   contentHeightMm: number;
+  /** Distance from the plate edge to the nearest drawn glyph ink, mm. */
+  plateInkClearanceMm: number | null;
+  /** True when the plate canvas would cut off part of the drawn labels. */
+  plateClipped: boolean;
   plateCornerR: number;
   plateCorners: CornerFlags;
 }
@@ -303,6 +359,57 @@ function computeLayout(config: Config, labels: LabelRender[], pxPerMm: number): 
     plateBounds = content;
   }
 
+  // How much of the plate surrounds the ink, and whether the plate's explicit
+  // canvas would cut content off. The plate is the only ink boundary when it is
+  // shown, so this is the real ink wall around a knocked-out character.
+  let plateInkClearancePx: number | null = null;
+  let clipClearancePx: number | null = null;
+  if (plate.showPlate && labels.length > 0) {
+    const padX = mmToPx(config.box.padX, pxPerMm);
+    const padY = mmToPx(config.box.padY, pxPerMm);
+    const forceNoBox = plate.disableBoxes;
+    let inkClearance = Infinity;
+    let clipClearance = Infinity;
+    for (const l of labels) {
+      const hasBox = l.showBox && !forceNoBox;
+      const drawnW = hasBox ? l.boxW : Math.max(0, l.boxW - 2 * padX);
+      const drawnH = hasBox ? l.boxH : Math.max(0, l.boxH - 2 * padY);
+      const drawn = rotatedBounds(
+        l.centerX * pxPerMm,
+        l.centerY * pxPerMm,
+        drawnW,
+        drawnH,
+        l.rotation
+      );
+      clipClearance = Math.min(
+        clipClearance,
+        drawn.minX - plateBounds.minX,
+        plateBounds.maxX - drawn.maxX,
+        drawn.minY - plateBounds.minY,
+        plateBounds.maxY - drawn.maxY
+      );
+
+      const inkW = Math.max(0, l.boxW - 2 * padX);
+      const inkH = Math.max(0, l.boxH - 2 * padY);
+      const ink = rotatedBounds(
+        l.centerX * pxPerMm,
+        l.centerY * pxPerMm,
+        inkW,
+        inkH,
+        l.rotation
+      );
+      inkClearance = Math.min(
+        inkClearance,
+        ink.minX - plateBounds.minX,
+        plateBounds.maxX - ink.maxX,
+        ink.minY - plateBounds.minY,
+        plateBounds.maxY - ink.maxY
+      );
+    }
+    plateInkClearancePx = Number.isFinite(inkClearance) ? inkClearance : null;
+    clipClearancePx = Number.isFinite(clipClearance) ? clipClearance : null;
+  }
+
   let width: number;
   let height: number;
   let offsetX: number;
@@ -330,6 +437,9 @@ function computeLayout(config: Config, labels: LabelRender[], pxPerMm: number): 
     boxHeightMm: pxPerMm > 0 ? (plateBounds.maxY - plateBounds.minY) / pxPerMm : 0,
     contentWidthMm: pxPerMm > 0 ? (content.maxX - content.minX) / pxPerMm : 0,
     contentHeightMm: pxPerMm > 0 ? (content.maxY - content.minY) / pxPerMm : 0,
+    plateInkClearanceMm:
+      plateInkClearancePx !== null && pxPerMm > 0 ? plateInkClearancePx / pxPerMm : null,
+    plateClipped: clipClearancePx !== null && clipClearancePx < -1e-6,
     plateCornerR: mmToPx(plate.cornerRadiusMm, pxPerMm),
     plateCorners: { tl: plate.roundTL, tr: plate.roundTR, bl: plate.roundBL, br: plate.roundBR },
   };
@@ -345,13 +455,22 @@ function drawLabelText(
   label: LabelRender,
   fillStyle: string
 ): void {
-  const { textOffsetX, textOffsetY, hscale, font, text } = label;
+  const { textOffsetX, textOffsetY, hscale, font, text, strokePx, letterSpacingPx } = label;
   ctx.translate(textOffsetX, textOffsetY);
   ctx.scale(hscale, 1);
   ctx.font = font;
+  ctx.letterSpacing = `${letterSpacingPx}px`;
   ctx.fillStyle = fillStyle;
+  ctx.strokeStyle = fillStyle;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
+  if (strokePx > 0.05) {
+    // Extra outline to honour a stroke target wider than the font's own stem.
+    ctx.lineWidth = strokePx;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeText(text, 0, 0);
+  }
   ctx.fillText(text, 0, 0);
 }
 
@@ -512,5 +631,91 @@ export function measureContent(config: Config, dpi: number): ContentMeasure {
     boxHeightMm: layout.boxHeightMm,
     widthPx: layout.widthPx,
     heightPx: layout.heightPx,
+  };
+}
+
+/**
+ * Measure the geometry that the JLCPCB rule engine needs: per-label ink/wall
+ * dimensions, the gap to the next label, and plate containment.
+ *
+ * This deliberately runs at a fixed, modest DPI: all values are converted back
+ * to millimetres, so the result does not depend on the export resolution.
+ */
+export function measureSpecGeometry(config: Config, dpi: number): SpecGeometry {
+  const pxPerMm = pxPerMmFromDpi(dpi);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const labels: LabelRender[] = ctx ? computeLabels(ctx, config, pxPerMm) : [];
+  const layout = computeLayout(config, labels, pxPerMm);
+  const padX = mmToPx(config.box.padX, pxPerMm);
+  const padY = mmToPx(config.box.padY, pxPerMm);
+  const hasPlate = config.plate.showPlate;
+  const forceNoBox = config.plate.disableBoxes;
+  const drawsBox = (l: LabelRender): boolean => l.showBox && !forceNoBox;
+
+  const inkBounds = labels.map((l) => {
+    const inkW = Math.max(0, l.boxW - 2 * padX);
+    const inkH = Math.max(0, l.boxH - 2 * padY);
+    return rotatedBounds(
+      l.centerX * pxPerMm,
+      l.centerY * pxPerMm,
+      inkW,
+      inkH,
+      l.rotation
+    );
+  });
+  const boxBounds = labels.map((l) =>
+    rotatedBounds(l.centerX * pxPerMm, l.centerY * pxPerMm, l.boxW, l.boxH, l.rotation)
+  );
+
+  const items: SpecLabelGeometry[] = labels.map((l, index) => {
+    const inkW = Math.max(0, l.boxW - 2 * padX);
+    const inkH = Math.max(0, l.boxH - 2 * padY);
+    const ownBox = drawsBox(l);
+    const solid = !hasPlate && !ownBox;
+    // The plate clearance is measured from the glyph ink, so it already
+    // includes the box padding — do not add the padding again.
+    const wallMm = hasPlate
+      ? layout.plateInkClearanceMm
+      : ownBox
+        ? Math.min(config.box.padX, config.box.padY)
+        : null;
+
+    let gapToNextMm: number | null = null;
+    if (index < labels.length - 1) {
+      const row = config.layout.arrangement === 'row';
+      const boxGap = row
+        ? boxBounds[index + 1].minX - boxBounds[index].maxX
+        : boxBounds[index + 1].minY - boxBounds[index].maxY;
+      const inkGap = row
+        ? inkBounds[index + 1].minX - inkBounds[index].maxX
+        : inkBounds[index + 1].minY - inkBounds[index].maxY;
+      const bothBoxes = drawsBox(l) && drawsBox(labels[index + 1]);
+      // Separate boxes keep their own ink boundary; a plate or overlapping
+      // boxes merge into one field, so the glyph-to-glyph gap is what matters.
+      const gap = !hasPlate && bothBoxes && boxGap >= 0 ? boxGap : inkGap;
+      gapToNextMm = gap / pxPerMm;
+    }
+
+    return {
+      id: `label-${index}`,
+      text: l.text,
+      heightMm: l.heightMm,
+      targetStrokeMm: l.targetStrokeMm,
+      strokeMm: l.strokeMm,
+      solid,
+      inkWidthMm: inkW / pxPerMm,
+      inkHeightMm: inkH / pxPerMm,
+      wallMm,
+      letterGapMm: l.letterGapMm,
+      gapToNextMm,
+    };
+  });
+
+  return {
+    labels: items,
+    plateClearanceMm: layout.plateInkClearanceMm,
+    plateClipped: layout.plateClipped,
+    plateShown: hasPlate,
   };
 }
